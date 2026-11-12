@@ -5,6 +5,8 @@
      1. Константи
      ========================================================= */
   const STORAGE_KEY_DONE = 'webcourse-done-topics';
+  const STORAGE_KEY_THEME = 'webcourse-theme';
+  const THEME_COLORS = { dark: '#0d0f1a', light: '#f4f3fb' };
   const CLS = {
     open: 'is-open',
     done: 'is-done',
@@ -43,6 +45,47 @@
       try { localStorage.setItem(key, JSON.stringify(value)); } catch { /* недоступно */ }
     },
   };
+
+  /* =========================================================
+     1б. Світла / темна тема
+     ========================================================= */
+  const root = document.documentElement;
+  const themeBtn = $('#themeBtn');
+  const themeMeta = $('meta[name="theme-color"]');
+  const systemDark = window.matchMedia('(prefers-color-scheme: dark)');
+
+  const currentTheme = () => root.dataset.theme || (systemDark.matches ? 'dark' : 'light');
+
+  function syncThemeUI() {
+    const theme = currentTheme();
+    root.dataset.themeCurrent = theme;
+    themeBtn.setAttribute('aria-label', theme === 'dark' ? 'Увімкнути світлу тему' : 'Увімкнути темну тему');
+    themeBtn.setAttribute('title', theme === 'dark' ? 'Світла тема' : 'Темна тема');
+    if (themeMeta) themeMeta.setAttribute('content', THEME_COLORS[theme]);
+  }
+
+  function applyTheme(theme) {
+    root.dataset.theme = theme;
+    storage.set(STORAGE_KEY_THEME, theme);
+    syncThemeUI();
+  }
+
+  themeBtn.addEventListener('click', (e) => {
+    const next = currentTheme() === 'dark' ? 'light' : 'dark';
+    // Коло, що розходиться від кнопки (View Transitions API), або звичайний плавний перехід
+    if (!document.startViewTransition || reduceMotion) { applyTheme(next); return; }
+    const r = themeBtn.getBoundingClientRect();
+    const x = (e.clientX || r.left + r.width / 2);
+    const y = (e.clientY || r.top + r.height / 2);
+    const radius = Math.hypot(Math.max(x, innerWidth - x), Math.max(y, innerHeight - y));
+    root.style.setProperty('--tx', `${x}px`);
+    root.style.setProperty('--ty', `${y}px`);
+    root.style.setProperty('--tr', `${radius}px`);
+    document.startViewTransition(() => applyTheme(next));
+  });
+
+  systemDark.addEventListener('change', syncThemeUI);
+  syncThemeUI();
 
   /* =========================================================
      2. Спливне повідомлення і конфеті
@@ -463,6 +506,8 @@
   const navLinks = $$('.nav__link');
   const toTop = $('#toTop');
   const toTopRing = $('#toTopRing');
+  const tgFloat = $('#tgFloat');
+  let tgPeeked = false;
   let ticking = false;
 
   function onScroll() {
@@ -474,6 +519,13 @@
     header.classList.toggle('is-scrolled', y > 10);
     scrollBar.style.setProperty('--progress', pageProgress.toFixed(4));
     toTop.classList.toggle(CLS.visible, y > 500);
+    tgFloat.classList.toggle(CLS.visible, y > 700);
+    // Один раз «визирає» з підписом, щоб привернути увагу
+    if (y > 700 && !tgPeeked) {
+      tgPeeked = true;
+      setTimeout(() => tgFloat.classList.add('is-peek'), 400);
+      setTimeout(() => tgFloat.classList.remove('is-peek'), 3800);
+    }
     toTopRing.style.strokeDashoffset = String(TO_TOP_LENGTH * (1 - pageProgress));
 
     const jRect = journey.getBoundingClientRect();
@@ -520,7 +572,7 @@
      11. Ефекти для миші: підсвітка, нахил, «магніт»
      ========================================================= */
   if (finePointer && !reduceMotion) {
-    $$('.topic, .terminal, .progress-card, .finish').forEach((el) => {
+    $$('.topic, .terminal, .progress-card, .finish, .channel').forEach((el) => {
       el.addEventListener('pointermove', (e) => {
         const r = el.getBoundingClientRect();
         el.style.setProperty('--mx', `${e.clientX - r.left}px`);
